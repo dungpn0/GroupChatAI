@@ -18,6 +18,12 @@ class UserLogin(BaseModel):
     password: str
 
 
+class GoogleAuthRequest(BaseModel):
+    email: str
+    name: Optional[str] = None
+    google_id: str
+
+
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     username: Optional[str] = None

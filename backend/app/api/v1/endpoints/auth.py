@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token, verify_token
 from app.models import User
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
+from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, GoogleAuthRequest
 from app.services.user_service import UserService
 from sqlalchemy import select
 import logging
@@ -81,43 +81,29 @@ async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/google", response_model=Token)
-async def google_auth(google_token: str, db: AsyncSession = Depends(get_db)):
+async def google_auth(request: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate with Google OAuth"""
-    # This would typically verify the Google token with Google's servers
-    # For now, this is a placeholder implementation
-    # In production, use google-auth library to verify the token
-    
     user_service = UserService(db)
     
-    # Extract user info from Google token (placeholder)
-    # google_user_info = verify_google_token(google_token)
-    
-    # For demo purposes, create a mock response
-    # In real implementation, parse the actual Google user info
-    google_user_info = {
-        "email": "user@gmail.com",
-        "name": "Google User",
-        "picture": "https://example.com/avatar.jpg",
-        "sub": "google_user_id_123"
-    }
-    
-    # Check if user exists
-    user = await user_service.get_user_by_google_id(google_user_info["sub"])
+    # Check if user exists by google_id
+    user = await user_service.get_user_by_google_id(request.google_id)
     
     if not user:
         # Check if email exists
-        existing_user = await user_service.get_user_by_email(google_user_info["email"])
+        existing_user = await user_service.get_user_by_email(request.email)
         if existing_user:
             # Link Google account to existing user
-            user = await user_service.link_google_account(existing_user.id, google_user_info["sub"])
+            user = await user_service.link_google_account(existing_user.id, request.google_id)
         else:
             # Create new user
+            username = request.email.split("@")[0]
             user_create = UserCreate(
-                email=google_user_info["email"],
-                username=google_user_info["email"].split("@")[0],
-                full_name=google_user_info["name"]
+                email=request.email,
+                username=username,
+                password="google_oauth_user",  # Placeholder password
+                full_name=request.name
             )
-            user = await user_service.create_google_user(user_create, google_user_info["sub"], google_user_info.get("picture"))
+            user = await user_service.create_google_user(user_create, request.google_id, None)
     
     # Create access token
     access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
