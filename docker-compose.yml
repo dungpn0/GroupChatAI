@@ -51,6 +51,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8000
+        NEXTAUTH_URL: http://localhost:3000
     container_name: groupchat_frontend
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8000
