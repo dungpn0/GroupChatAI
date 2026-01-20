@@ -18,6 +18,10 @@ class UserLogin(BaseModel):
     password: str
 
 
+class GoogleTokenRequest(BaseModel):
+    google_token: str
+
+
 class GoogleAuthRequest(BaseModel):
     email: str
     name: Optional[str] = None

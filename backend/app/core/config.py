@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     GOOGLE_GEMINI_API_KEY: Optional[str] = None
     
-    # CORS
-    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "0.0.0.0", "*"]  # Allow all for Docker
+    # CORS - Handle as string and convert to list
+    ALLOWED_HOSTS: str = "localhost,127.0.0.1,0.0.0.0,*"
     
     # App settings
     PROJECT_NAME: str = "GroupChatAI"
@@ -42,9 +42,15 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = None
     SMTP_FROM_EMAIL: Optional[str] = None
     
+    @property
+    def allowed_hosts_list(self) -> List[str]:
+        """Convert ALLOWED_HOSTS string to list"""
+        return [host.strip() for host in self.ALLOWED_HOSTS.split(",")]
+    
     class Config:
-        env_file = ".env"
+        env_file = ".env"  # Use local .env file in backend directory
         case_sensitive = True
+        extra = "ignore"  # Allow extra fields in .env file
 
 
 settings = Settings()

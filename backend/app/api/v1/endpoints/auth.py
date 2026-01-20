@@ -3,10 +3,13 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token, verify_token
+from app.core.config import settings
 from app.models import User
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, GoogleAuthRequest
+from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, GoogleAuthRequest, GoogleTokenRequest
 from app.services.user_service import UserService
 from sqlalchemy import select
+from google.auth.transport import requests
+from google.oauth2 import id_token
 import logging
 
 router = APIRouter()
@@ -81,6 +84,84 @@ async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/google", response_model=Token)
+async def google_auth_token(request: GoogleTokenRequest, db: AsyncSession = Depends(get_db)):
+    """Authenticate with Google OAuth token"""
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Google OAuth is not configured"
+        )
+    
+    try:
+        # Verify the Google OAuth token
+        idinfo = id_token.verify_oauth2_token(
+            request.google_token, 
+            requests.Request(), 
+            settings.GOOGLE_CLIENT_ID
+        )
+        
+        # Extract user information from token
+        email = idinfo.get('email')
+        name = idinfo.get('name')
+        google_id = idinfo.get('sub')
+        avatar_url = idinfo.get('picture')
+        
+        if not email or not google_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid Google token: missing email or user ID"
+            )
+    
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid Google token: {str(e)}"
+        )
+    
+    user_service = UserService(db)
+    
+    # Check if user exists by google_id
+    user = await user_service.get_user_by_google_id(google_id)
+    
+    if not user:
+        # Check if email exists
+        existing_user = await user_service.get_user_by_email(email)
+        if existing_user:
+            # Link Google account to existing user
+            user = await user_service.link_google_account(existing_user.id, google_id)
+        else:
+            # Create new user
+            username = email.split("@")[0]
+            counter = 1
+            original_username = username
+            
+            # Ensure username uniqueness
+            while await user_service.get_user_by_username(username):
+                username = f"{original_username}{counter}"
+                counter += 1
+            
+            user_create = UserCreate(
+                email=email,
+                username=username,
+                password="google_oauth_user",  # Placeholder password
+                full_name=name
+            )
+            user = await user_service.create_google_user(user_create, google_id, avatar_url)
+    
+    # Create access token
+    access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
+    
+    # Update last login
+    await user_service.update_last_login(user.id)
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user
+    }
+
+
+@router.post("/google-direct", response_model=Token)
 async def google_auth(request: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate with Google OAuth"""
     user_service = UserService(db)
