@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database - Internal only
   postgres:
     image: postgres:15
     container_name: groupchat_postgres
@@ -9,19 +9,19 @@ services:
       POSTGRES_DB: groupchatai
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres123
-    ports:
-      - "5432:5432"
+    # ports:  # Commented out - only internal access
+    #   - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - groupchat_network
 
-  # Redis for caching and session management
+  # Redis - Internal only  
   redis:
     image: redis:7-alpine
     container_name: groupchat_redis
-    ports:
-      - "6379:6379"
+    # ports:  # Commented out - only internal access
+    #   - "6379:6379"
     networks:
       - groupchat_network
 
@@ -40,7 +40,7 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
     ports:
-      - "8000:8000"
+      - "8000:8000"  # API accessible externally
     depends_on:
       - postgres
       - redis
@@ -63,7 +63,7 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
     ports:
-      - "3000:3000"
+      - "3000:3000"  # Web accessible externally
     depends_on:
       - backend
     volumes:
