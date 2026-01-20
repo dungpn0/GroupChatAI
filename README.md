@@ -27,8 +27,11 @@ A modern group chat application with AI integration, featuring real-time messagi
    ```bash
    cp .env.example .env
    ```
-3. Fill in your API keys and secrets in `.env`
-4. Start with Docker:
+3. **Configure Google OAuth** (optional):
+   - Follow the [Google OAuth Setup Guide](./docs/google-oauth-setup.md)
+   - Update `.env` with your Google credentials
+4. Fill in your API keys and secrets in `.env`
+5. Start with Docker:
    ```bash
    docker-compose up --build
    ```
@@ -45,7 +48,99 @@ A modern group chat application with AI integration, featuring real-time messagi
 - PostgreSQL 15+
 - Docker & Docker Compose
 
-### Backend Development
+### Docker Development
+
+#### 🚀 Production Mode (Recommended for demo/staging)
+```bash
+# Build and start all services in production mode
+docker-compose up --build -d
+
+# Check container status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+**Features:**
+- ✅ Optimized production builds
+- ✅ Secure (databases not exposed externally)
+- ✅ Fast performance
+- ✅ External access via `http://<server-ip>:3000`
+
+**Services accessible externally:**
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:8000`
+- API Docs: `http://localhost:8000/docs`
+
+#### 🔧 Development Mode (Hot reload)
+```bash
+# Build and start in development mode with hot reload
+docker-compose -f docker-compose.dev.yml up --build -d
+
+# Check status
+docker-compose -f docker-compose.dev.yml ps
+
+# View logs
+docker-compose -f docker-compose.dev.yml logs -f frontend
+docker-compose -f docker-compose.dev.yml logs -f backend
+
+# Stop development services
+docker-compose -f docker-compose.dev.yml down
+```
+
+**Features:**
+- ✅ Hot reload for code changes
+- ✅ Source code mounted for live editing
+- ✅ Database and Redis exposed for debugging
+- ✅ Development optimized builds
+
+**Additional development access:**
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+
+#### 🔄 Switching Between Modes
+```bash
+# Switch from production to development
+docker-compose down
+docker-compose -f docker-compose.dev.yml up -d
+
+# Switch from development to production  
+docker-compose -f docker-compose.dev.yml down
+docker-compose up -d
+
+# Clean rebuild (if dependencies changed)
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+#### 🐛 Troubleshooting
+```bash
+# View specific container logs
+docker-compose logs backend
+docker-compose logs frontend
+docker-compose logs postgres
+
+# Rebuild specific service
+docker-compose build --no-cache backend
+docker-compose up -d backend
+
+# Reset all data (⚠️ Will delete database data)
+docker-compose down -v
+docker-compose up --build -d
+
+# Enter container for debugging
+docker-compose exec backend bash
+docker-compose exec frontend sh
+```
+
+### Native Development (Alternative to Docker)
+
+#### Backend Development
 ```bash
 cd backend
 python -m venv venv
@@ -54,7 +149,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-### Frontend Development
+#### Frontend Development
 ```bash
 cd frontend
 npm install
@@ -89,6 +184,7 @@ npm run dev
 
 See the [docs](./docs) folder for detailed documentation:
 - [API Documentation](./docs/api.md)
+- [Google OAuth Setup](./docs/google-oauth-setup.md)
 - [Database Schema](./docs/database.md)
 - [Deployment Guide](./docs/deployment.md)
 - [User Guide](./docs/user-guide.md)
