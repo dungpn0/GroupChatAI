@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import axios from 'axios'
+import toast from 'react-hot-toast'
 
 interface User {
   id: number
@@ -21,7 +22,7 @@ interface AuthState {
   isLoading: boolean
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
-  loginWithGoogle: (googleToken: string) => Promise<void>
+  loginWithGoogle: (googleToken?: string) => Promise<void>
   register: (email: string, username: string, password: string, fullName?: string) => Promise<void>
   logout: () => void
   refreshUser: () => Promise<void>
@@ -63,12 +64,33 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      loginWithGoogle: async (googleToken: string) => {
+      loginWithGoogle: async (googleToken?: string) => {
         set({ isLoading: true })
         try {
+          let token = googleToken;
+          
+          // If no token provided, initiate Google OAuth flow
+          if (!token) {
+            // Dynamically import Google OAuth service to avoid SSR issues
+            const { default: googleOAuthService } = await import('@/services/googleOAuth');
+            
+            try {
+              // Try modern Google Identity Services first
+              token = await googleOAuthService.signInWithGoogleIdentity();
+            } catch (identityError) {
+              console.warn('Google Identity Services failed, trying legacy method:', identityError);
+              // Fallback to legacy Google API
+              token = await googleOAuthService.signInWithGoogle();
+            }
+          }
+
+          if (!token) {
+            throw new Error('Failed to get Google authentication token');
+          }
+
           const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
           const response = await axios.post(`${API_URL}/api/v1/auth/google`, {
-            google_token: googleToken,
+            google_token: token,
           })
 
           const { access_token, user } = response.data
@@ -82,9 +104,22 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           })
+
+          toast.success('Successfully logged in with Google!')
         } catch (error: any) {
           set({ isLoading: false })
-          throw new Error(error.response?.data?.detail || 'Google login failed')
+          console.error('Google login error:', error)
+          
+          // More detailed error handling
+          let errorMessage = 'Google login failed';
+          if (error.response?.data?.detail) {
+            errorMessage = error.response.data.detail;
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+          
+          toast.error(errorMessage)
+          throw new Error(errorMessage)
         }
       },
 

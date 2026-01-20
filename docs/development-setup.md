@@ -1,33 +1,93 @@
 # Development Setup Guide
 
-## Scenario: Separate Development and Production
+## Environment Configuration
 
-### 📍 **Architecture:**
-- **Production Server (10.8.0.3)**: PostgreSQL + Redis + Full Stack
-- **Development Machine**: Only Backend + Frontend (connecting to remote DB)
+### File Structure
+```
+groupchatai/
+├── .env.example           # Template with all variables
+├── backend/
+│   ├── .env.example      # Backend-specific template  
+│   ├── .env              # Backend development config
+│   └── .env.production   # Backend production config
+├── frontend/
+│   ├── .env.example      # Frontend-specific template
+│   ├── .env.local        # Frontend development config
+│   └── .env.production   # Frontend production config
+└── docker-compose.yml    # Uses env_file: backend/.env and frontend/.env.local
+```
+
+### Setup Steps
+
+1. **Copy environment templates:**
+   ```bash
+   # Backend environment
+   cd backend
+   cp .env.example .env
+   # Edit backend/.env with your database URL, JWT secret, API keys
+   
+   # Frontend environment  
+   cd ../frontend
+   cp .env.example .env.local
+   # Edit frontend/.env.local with your API URL, Google client ID
+   ```
+
+2. **Fill in actual values** - never commit real secrets to git
 
 ---
 
-## 🚀 **Production Server Setup (10.8.0.3)**
+## 🚀 **Local Development (Without Docker)**
 
-### 1. Full Stack Deployment
+### Backend Setup
 ```bash
-# Copy production environment
-cp .env.production .env
+cd backend
+python -m venv venv
 
-# Update IP addresses in .env
-EXTERNAL_IP=10.8.0.3
-NEXT_PUBLIC_API_URL=http://10.8.0.3:8000
-NEXTAUTH_URL=http://10.8.0.3:3000
+# Activate virtual environment
+# Windows:
+.\venv\Scripts\Activate.ps1
+# Linux/Mac:
+source venv/bin/activate
 
-# Deploy full stack with exposed database ports
-docker-compose -f docker-compose.prod.yml up -d
-
-# Verify services
-docker-compose -f docker-compose.prod.yml ps
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 2. Only Database Services (Alternative)
+### Frontend Setup  
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## 🐳 **Docker Development**
+
+### Quick Start
+```bash
+# Ensure environment files exist
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+
+# Start all services
+docker-compose up --build
+```
+
+---
+
+## 📍 **Production Deployment**
+
+### 1. Production Server Setup
+```bash
+# Copy production environment templates
+cp backend/.env.example backend/.env.production  
+cp frontend/.env.example frontend/.env.production
+
+# Update with production URLs and secrets
+# backend/.env.production - database URLs, JWT secrets, API keys
+# frontend/.env.production - production API URLs, NextAuth config
+```
 ```bash
 # If you only want to run databases on production
 docker-compose -f docker-compose.services.yml up -d

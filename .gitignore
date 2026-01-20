@@ -45,17 +45,28 @@ coverage.xml
 .pytest_cache/
 
 # Virtual environments
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Environment variables - Only allow .env.example
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+
+# Service-specific environment files
+backend/.env*
+!backend/.env.example
+frontend/.env*
+!frontend/.env.example
 
 # IDEs
 .vscode/

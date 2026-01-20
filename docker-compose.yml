@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -27,14 +25,26 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: groupchat_backend
+    env_file:
+      - ./backend/.env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres123@postgres:5432/groupchatai
       - REDIS_URL=redis://redis:6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY}
       - JWT_SECRET=${JWT_SECRET}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_EXPIRATION_HOURS=${JWT_EXPIRATION_HOURS:-168}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,*}
+      - PROJECT_NAME=${PROJECT_NAME:-GroupChatAI}
+      - VERSION=${VERSION:-1.0.0}
+      - DEBUG=${DEBUG:-true}
+      - DEFAULT_USER_CREDITS=${DEFAULT_USER_CREDITS:-100.0}
+      - GEMINI_CREDIT_RATE=${GEMINI_CREDIT_RATE:-0.1}
+      - OPENAI_GPT4_CREDIT_RATE=${OPENAI_GPT4_CREDIT_RATE:-0.2}
+      - OPENAI_GPT35_CREDIT_RATE=${OPENAI_GPT35_CREDIT_RATE:-0.1}
     ports:
       - "8000:8000"
     depends_on:
@@ -53,16 +63,21 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
         NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
         INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:8000}
     container_name: groupchat_frontend
+    env_file:
+      - ./frontend/.env.local
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - INTERNAL_API_URL=${INTERNAL_API_URL:-http://backend:8000}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - NODE_ENV=${NODE_ENV:-production}
     ports:
       - "3000:3000"
     depends_on:
