@@ -40,7 +40,8 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true })
         try {
-          const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/login`, {
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+          const response = await axios.post(`${API_URL}/api/v1/auth/login`, {
             email,
             password,
           })
@@ -65,7 +66,8 @@ export const useAuthStore = create<AuthState>()(
       loginWithGoogle: async (googleToken: string) => {
         set({ isLoading: true })
         try {
-          const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/google`, {
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+          const response = await axios.post(`${API_URL}/api/v1/auth/google`, {
             google_token: googleToken,
           })
 
@@ -89,7 +91,8 @@ export const useAuthStore = create<AuthState>()(
       register: async (email: string, username: string, password: string, fullName?: string) => {
         set({ isLoading: true })
         try {
-          const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/register`, {
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+          const response = await axios.post(`${API_URL}/api/v1/auth/register`, {
             email,
             username,
             password,
@@ -121,7 +124,8 @@ export const useAuthStore = create<AuthState>()(
         if (!token) return
 
         try {
-          const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/me`)
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+          const response = await axios.get(`${API_URL}/api/v1/auth/me`)
           set({ user: response.data })
         } catch (error) {
           console.error('Failed to refresh user:', error)

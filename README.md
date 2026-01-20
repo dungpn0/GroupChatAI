@@ -76,6 +76,25 @@ docker-compose down
 - Backend API: `http://localhost:8000`
 - API Docs: `http://localhost:8000/docs`
 
+#### 🌐 External Access / VPN Deployment
+```bash
+# Copy environment template for external access
+cp .env.production .env
+
+# Update your server IP in .env file
+EXTERNAL_IP=10.8.0.3  # Your server's external IP
+NEXT_PUBLIC_API_URL=http://10.8.0.3:8000
+NEXTAUTH_URL=http://10.8.0.3:3000
+
+# Deploy with external access
+docker-compose build --no-cache
+docker-compose up -d
+
+# Access via external IP
+# Frontend: http://10.8.0.3:3000
+# Backend:  http://10.8.0.3:8000
+```
+
 #### 🔧 Development Mode (Hot reload)
 ```bash
 # Build and start in development mode with hot reload

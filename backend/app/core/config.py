@@ -6,7 +6,7 @@ import os
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./groupchatai.db"
-    REDIS_URL: str = "redis://localhost:6379"
+    REDIS_URL: str = "redis://redis:6379"  # Use Docker service name by default
     
     # Authentication
     JWT_SECRET: str = "your-super-secret-jwt-key-change-this-in-production"
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     GOOGLE_GEMINI_API_KEY: Optional[str] = None
     
     # CORS
-    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "0.0.0.0"]
+    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "0.0.0.0", "*"]  # Allow all for Docker
     
     # App settings
     PROJECT_NAME: str = "GroupChatAI"

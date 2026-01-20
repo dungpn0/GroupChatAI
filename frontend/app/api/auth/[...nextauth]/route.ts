@@ -20,7 +20,7 @@ const handler = NextAuth({
         }
 
         try {
-          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+          const API_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
           const response = await fetch(`${API_URL}/api/v1/auth/login`, {
             method: 'POST',
             headers: {
@@ -60,7 +60,7 @@ const handler = NextAuth({
         if (account.provider === 'google') {
           // Handle Google OAuth
           try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+            const API_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
             const response = await fetch(`${API_URL}/api/v1/auth/google`, {
               method: 'POST',
               headers: {
