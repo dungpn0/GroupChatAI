@@ -204,6 +204,7 @@ npm run dev
 See the [docs](./docs) folder for detailed documentation:
 - [API Documentation](./docs/api.md)
 - [Google OAuth Setup](./docs/google-oauth-setup.md)
+- [Development Setup Guide](./docs/development-setup.md)
 - [Database Schema](./docs/database.md)
 - [Deployment Guide](./docs/deployment.md)
 - [User Guide](./docs/user-guide.md)

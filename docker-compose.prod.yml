@@ -1,27 +1,27 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database - Production
   postgres:
     image: postgres:15
-    container_name: groupchat_postgres_dev
+    container_name: groupchat_postgres_prod
     environment:
       POSTGRES_DB: groupchatai
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres123
     ports:
-      - "5432:5432"  # Expose for development
+      - "5432:5432"  # Exposed for external access
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - groupchat_network
 
-  # Redis for caching and session management
+  # Redis - Production
   redis:
     image: redis:7-alpine
-    container_name: groupchat_redis_dev
+    container_name: groupchat_redis_prod
     ports:
-      - "6379:6379"  # Expose for development
+      - "6379:6379"  # Exposed for external access
     networks:
       - groupchat_network
 
@@ -30,7 +30,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: groupchat_backend_dev
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://10.8.0.3:8000}
+        NEXTAUTH_URL: ${NEXTAUTH_URL:-http://10.8.0.3:3000}
+        INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:8000}
+    container_name: groupchat_backend_prod
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres123@postgres:5432/groupchatai
       - REDIS_URL=redis://redis:6379
@@ -44,21 +48,24 @@ services:
     depends_on:
       - postgres
       - redis
-    volumes:
-      - ./backend:/app  # Hot reload for development
     networks:
       - groupchat_network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # NextJS Frontend (Development with hot reload)
+  # NextJS Frontend
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
-    container_name: groupchat_frontend_dev
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://10.8.0.3:8000}
+        NEXTAUTH_URL: ${NEXTAUTH_URL:-http://10.8.0.3:3000}
+        INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:8000}
+    container_name: groupchat_frontend_prod
     environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://10.8.0.3:8000}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://10.8.0.3:3000}
+      - INTERNAL_API_URL=${INTERNAL_API_URL:-http://backend:8000}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
@@ -66,10 +73,6 @@ services:
       - "3000:3000"
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
     networks:
       - groupchat_network
 

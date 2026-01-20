@@ -28,7 +28,7 @@ services:
       dockerfile: Dockerfile
     container_name: groupchat_backend
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres123@postgres:5432/groupchatai
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres123@postgres:5432/groupchatai
       - REDIS_URL=redis://redis:6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY}
