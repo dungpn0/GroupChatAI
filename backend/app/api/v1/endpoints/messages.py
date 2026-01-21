@@ -114,6 +114,7 @@ async def send_message(
     db.refresh(new_message)
     
     # Broadcast message to all group members via WebSocket
+    print(f"About to broadcast to group {request.group_id}")
     await manager.send_to_group(request.group_id, {
         "type": "new_message",
         "message": {
@@ -126,6 +127,7 @@ async def send_message(
             "is_ai_message": new_message.is_ai_message
         }
     }, exclude_user=current_user.id)
+    print(f"Broadcast completed for group {request.group_id}")
     
     return {
         "message": "Message sent successfully",

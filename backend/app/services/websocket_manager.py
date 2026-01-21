@@ -91,11 +91,22 @@ class ConnectionManager:
     
     async def send_to_group(self, group_id: int, message: dict, exclude_user: int = None):
         """Send message to all users in a group"""
+        print(f"send_to_group called - group_id: {group_id}, message_type: {message.get('type')}")
+        print(f"Current group connections: {list(self.group_connections.keys())}")
+        
         if group_id in self.group_connections:
-            for user_id in self.group_connections[group_id]:
+            user_list = list(self.group_connections[group_id])
+            print(f"Found {len(user_list)} users in group {group_id}: {user_list}")
+            
+            for user_id in user_list:
                 if exclude_user and user_id == exclude_user:
+                    print(f"Excluding user {user_id} from broadcast")
                     continue
+                    
+                print(f"Sending to user {user_id}")
                 await self.send_to_user(user_id, message)
+        else:
+            print(f"No connections found for group {group_id}")
     
     async def listen_for_messages(self, websocket: WebSocket, token: str):
         """Listen for incoming WebSocket messages"""
