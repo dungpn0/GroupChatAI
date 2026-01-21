@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "GroupChatAI"
     VERSION: str = "1.0.0"
     DEBUG: bool = True
+    SQLALCHEMY_ECHO: bool = False  # Disable SQLAlchemy logging
     
     # Credit system
     DEFAULT_USER_CREDITS: float = 100.0

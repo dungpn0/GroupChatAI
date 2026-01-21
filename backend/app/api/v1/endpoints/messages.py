@@ -126,7 +126,7 @@ async def send_message(
             "created_at": new_message.created_at.isoformat(),
             "is_ai_message": new_message.is_ai_message
         }
-    }, exclude_user=current_user.id)
+    }, exclude_user_id=current_user.id)  # Sửa từ exclude_user thành exclude_user_id
     print(f"Broadcast completed for group {request.group_id}")
     
     return {
