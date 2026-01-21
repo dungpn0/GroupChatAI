@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'GroupChatAI - AI-Powered Group Chat',
+  title: `${process.env.NEXT_PUBLIC_APP_NAME || 'GroupChatAI'} - AI-Powered Group Chat`,
   description: 'Modern group chat application with AI integration',
 }
 

@@ -315,7 +315,7 @@ export class WebSocketService {
       return
     }
 
-    const wsUrl = `ws://localhost:8000/ws?token=${token}`
+    const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'}/ws?token=${token}`
     
     try {
       this.ws = new WebSocket(wsUrl)

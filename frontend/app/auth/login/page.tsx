@@ -16,6 +16,9 @@ export default function LoginPage() {
     password: '',
   })
   const [showPassword, setShowPassword] = useState(false)
+  
+  // Feature flag for Google Auth
+  const isGoogleAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === 'true'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -61,7 +64,7 @@ export default function LoginPage() {
             </div>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to GroupChatAI
+            Sign in to {process.env.NEXT_PUBLIC_APP_NAME || 'GroupChatAI'}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{' '}
@@ -150,12 +153,14 @@ export default function LoginPage() {
             </div>
 
             {/* Google Login Button */}
-            <GoogleSignInButton
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-              disabled={isLoading}
-              text="Sign in with Google"
-            />
+            {isGoogleAuthEnabled && (
+              <GoogleSignInButton
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                disabled={isLoading}
+                text="Sign in with Google"
+              />
+            )}
           </div>
         </form>
       </div>

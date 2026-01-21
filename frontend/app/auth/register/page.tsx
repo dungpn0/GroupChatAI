@@ -21,6 +21,9 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
+  
+  // Feature flag for Google Auth
+  const isGoogleAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === 'true'
 
   const validatePassword = (password: string) => {
     const errors = []
@@ -55,7 +58,7 @@ export default function RegisterPage() {
 
     try {
       await register(formData.email, formData.username, formData.password, formData.fullName)
-      toast.success('Registration successful! Welcome to GroupChatAI!')
+      toast.success(`Registration successful! Welcome to ${process.env.NEXT_PUBLIC_APP_NAME || 'GroupChatAI'}!`)
       router.push('/chat')
     } catch (error: any) {
       toast.error(error.message || 'Registration failed')
@@ -65,7 +68,7 @@ export default function RegisterPage() {
   const handleGoogleSuccess = async (token: string) => {
     try {
       await loginWithGoogle(token)
-      toast.success('Welcome to GroupChatAI!')
+      toast.success(`Welcome to ${process.env.NEXT_PUBLIC_APP_NAME || 'GroupChatAI'}!`)
       router.push('/chat')
     } catch (error: any) {
       console.error('Google registration error:', error)

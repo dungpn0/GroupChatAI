@@ -31,6 +31,9 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
   })
 
   const [errors, setErrors] = useState<{[key: string]: string}>({})
+  
+  // Feature flag for AI Chat
+  const isAIChatEnabled = process.env.NEXT_PUBLIC_ENABLE_AI_CHAT === 'true'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -173,7 +176,8 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
           </div>
 
           {/* AI Integration */}
-          <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+          {isAIChatEnabled && (
+            <div className="border border-gray-200 rounded-lg p-4 space-y-4">
             <div className="flex items-center space-x-3">
               <SparklesIcon className="w-5 h-5 text-purple-600" />
               <div>
@@ -217,7 +221,8 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                 </div>
               </div>
             )}
-          </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex space-x-3 pt-4">

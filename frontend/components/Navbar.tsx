@@ -31,7 +31,7 @@ export function Navbar() {
             <span className="text-white font-bold text-sm">GC</span>
           </div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            GroupChatAI
+            {process.env.NEXT_PUBLIC_APP_NAME || 'GroupChatAI'}
           </h1>
         </div>
 
