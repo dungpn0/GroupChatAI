@@ -55,17 +55,17 @@ venv.bak/
 # Environment variables - Only allow .env.example
 .env
 .env.local
-.env.development
-.env.development.local
-.env.test
-.env.test.local
-.env.production
-.env.production.local
+# .env.development
+# .env.development.local
+# .env.test
+# .env.test.local
+# .env.production
+# .env.production.local
 
 # Service-specific environment files
-backend/.env*
+backend/.env
 !backend/.env.example
-frontend/.env*
+frontend/.env
 !frontend/.env.example
 
 # IDEs
