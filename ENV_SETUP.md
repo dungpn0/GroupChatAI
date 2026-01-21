@@ -31,7 +31,7 @@ docker-compose up -d
 
 2. **Setup Frontend (optional - có defaults tốt):**
    ```bash
-   cp frontend/.env.example frontend/.env.production
+   cp frontend/.env.production frontend/.env.local
    # Sửa nếu cần customize
    ```
 

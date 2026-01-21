@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.services.ai_service import AIService
 from app.core.dependencies import get_current_user
 from app.models import User
+from app.services.websocket_manager import manager
 
 router = APIRouter()
 
@@ -112,6 +113,20 @@ async def send_message(
     db.commit()
     db.refresh(new_message)
     
+    # Broadcast message to all group members via WebSocket
+    await manager.send_to_group(request.group_id, {
+        "type": "new_message",
+        "message": {
+            "id": new_message.id,
+            "content": new_message.content,
+            "user_id": new_message.user_id,
+            "user_email": current_user.email,
+            "group_id": new_message.group_id,
+            "created_at": new_message.created_at.isoformat(),
+            "is_ai_message": new_message.is_ai_message
+        }
+    }, exclude_user=current_user.id)
+    
     return {
         "message": "Message sent successfully",
         "message_id": new_message.id,
@@ -152,6 +167,22 @@ async def send_ai_message(
         is_ai_message=False
     )
     db.add(user_message)
+    db.commit()
+    db.refresh(user_message)
+    
+    # Broadcast user's message to group
+    await manager.send_to_group(request.group_id, {
+        "type": "new_message",
+        "message": {
+            "id": user_message.id,
+            "content": user_message.content,
+            "user_id": user_message.user_id,
+            "user_email": current_user.email,
+            "group_id": user_message.group_id,
+            "created_at": user_message.created_at.isoformat(),
+            "is_ai_message": user_message.is_ai_message
+        }
+    }, exclude_user=current_user.id)
     
     # Process AI request
     result = await ai_service.process_ai_request(
@@ -171,8 +202,26 @@ async def send_ai_message(
             ai_model_used=request.model
         )
         db.add(ai_message)
+        db.commit()
+        db.refresh(ai_message)
+        
+        # Broadcast AI response to group
+        await manager.send_to_group(request.group_id, {
+            "type": "new_message",
+            "message": {
+                "id": ai_message.id,
+                "content": ai_message.content,
+                "user_id": ai_message.user_id,
+                "user_email": "AI Assistant",
+                "group_id": ai_message.group_id,
+                "created_at": ai_message.created_at.isoformat(),
+                "is_ai_message": ai_message.is_ai_message,
+                "ai_model_used": ai_message.ai_model_used
+            }
+        })
     
-    db.commit()
+    else:
+        db.commit()
     
     # Get updated user credits
     updated_user = await ai_service.user_service.get_user(current_user.id)

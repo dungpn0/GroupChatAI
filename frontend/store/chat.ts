@@ -257,9 +257,15 @@ export const useChatStore = create<ChatState>()(
       },
 
       initializeWebSocket: () => {
-        // Listen for new messages
+        // Listen for new messages (legacy)
         wsService.onMessage('message', (wsMessage: any) => {
           const message = wsMessage.data as Message
+          get().addMessage(message)
+        })
+
+        // Listen for new messages (current format)
+        wsService.onMessage('new_message', (wsMessage: any) => {
+          const message = wsMessage.message as Message
           get().addMessage(message)
         })
 
