@@ -44,8 +44,8 @@ class User(Base):
     last_login = Column(DateTime, nullable=True)
     
     # Relationships
-    created_groups = relationship("ChatGroup", foreign_keys="ChatGroup.creator_id")
-    group_memberships = relationship("GroupMember", foreign_keys="GroupMember.user_id")
+    created_groups = relationship("ChatGroup", foreign_keys="ChatGroup.creator_id", overlaps="creator")
+    group_memberships = relationship("GroupMember", foreign_keys="GroupMember.user_id", overlaps="user")
     messages = relationship("Message", foreign_keys="Message.user_id")
     credit_transactions = relationship("CreditTransaction", back_populates="user")
     notifications = relationship("Notification", back_populates="user")
@@ -76,8 +76,8 @@ class ChatGroup(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
     # Relationships
-    creator = relationship("User", foreign_keys="ChatGroup.creator_id")
-    group_memberships = relationship("GroupMember", foreign_keys="GroupMember.group_id")
+    creator = relationship("User", foreign_keys="ChatGroup.creator_id", overlaps="created_groups")
+    group_memberships = relationship("GroupMember", foreign_keys="GroupMember.group_id", overlaps="group")
     messages = relationship("Message", foreign_keys="Message.group_id")
     invitations = relationship("GroupInvitation", foreign_keys="GroupInvitation.group_id")
 

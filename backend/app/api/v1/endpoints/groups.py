@@ -10,6 +10,7 @@ from app.core.dependencies import get_current_user
 from app.models import User, ChatGroup, GroupMember, GroupInvitation, Message
 from app.services.notification_service import NotificationService
 from app.services.email_service import email_service
+from app.services.websocket_manager import manager
 import uuid
 
 router = APIRouter()
@@ -533,7 +534,21 @@ async def send_message_to_group(
     db.add(new_message)
     await db.commit()
     await db.refresh(new_message)
-    
+
+    # Broadcast new message to group members via WebSocket
+    print(f"Broadcasting new_message to group {group_id}")
+    await manager.send_to_group(group_id, {
+        "type": "new_message",
+        "message": {
+            "id": new_message.id,
+            "content": new_message.content,
+            "user_id": new_message.user_id,
+            "user_email": current_user.email,
+            "group_id": new_message.group_id,
+            "created_at": new_message.created_at.isoformat() if new_message.created_at else None,
+        }
+    }, exclude_user_id=current_user.id)
+
     return MessageResponse(
         id=new_message.id,
         content=new_message.content,
