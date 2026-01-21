@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
+import uuid
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token, verify_token
 from app.core.config import settings
@@ -73,13 +74,14 @@ async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
     # Create access token
     access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
     
-    # Update last login
+    # Update last login and get fresh user object
     await user_service.update_last_login(user.id)
+    updated_user = await user_service.get_user_by_id(user.id)
     
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": user
+        "user": updated_user
     }
 
 
@@ -143,7 +145,7 @@ async def google_auth_token(request: GoogleTokenRequest, db: AsyncSession = Depe
             user_create = UserCreate(
                 email=email,
                 username=username,
-                password="google_oauth_user",  # Placeholder password
+                password=get_password_hash(f"google_oauth_{uuid.uuid4().hex[:16]}"),  # Secure random password
                 full_name=name
             )
             user = await user_service.create_google_user(user_create, google_id, avatar_url)
@@ -181,7 +183,7 @@ async def google_auth(request: GoogleAuthRequest, db: AsyncSession = Depends(get
             user_create = UserCreate(
                 email=request.email,
                 username=username,
-                password="google_oauth_user",  # Placeholder password
+                password=get_password_hash(f"google_oauth_{uuid.uuid4().hex[:16]}"),  # Secure random password
                 full_name=request.name
             )
             user = await user_service.create_google_user(user_create, request.google_id, None)

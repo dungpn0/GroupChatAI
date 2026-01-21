@@ -4,15 +4,17 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 
 
-# Association table for group members
-group_members = Table(
-    'group_members',
-    Base.metadata,
-    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
-    Column('group_id', Integer, ForeignKey('chat_groups.id'), primary_key=True),
-    Column('joined_at', DateTime, default=func.now()),
-    Column('is_admin', Boolean, default=False)
-)
+class GroupMember(Base):
+    __tablename__ = "group_members"
+    
+    user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
+    group_id = Column(Integer, ForeignKey('chat_groups.id'), primary_key=True)
+    joined_at = Column(DateTime, default=func.now())
+    is_admin = Column(Boolean, default=False)
+    
+    # Relationships
+    user = relationship("User")
+    group = relationship("ChatGroup")
 
 
 class User(Base):
@@ -42,9 +44,9 @@ class User(Base):
     last_login = Column(DateTime, nullable=True)
     
     # Relationships
-    created_groups = relationship("ChatGroup", back_populates="creator")
-    groups = relationship("ChatGroup", secondary=group_members, back_populates="members")
-    messages = relationship("Message", back_populates="user")
+    created_groups = relationship("ChatGroup", foreign_keys="ChatGroup.created_by")
+    group_memberships = relationship("GroupMember", foreign_keys="GroupMember.user_id")
+    messages = relationship("Message", foreign_keys="Message.sender_id")
     credit_transactions = relationship("CreditTransaction", back_populates="user")
 
 
@@ -66,17 +68,17 @@ class ChatGroup(Base):
     ai_model = Column(String(50), nullable=True)  # openai-gpt4, openai-gpt3.5, gemini
     
     # Creator
-    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # Match endpoint usage
     
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
     # Relationships
-    creator = relationship("User", back_populates="created_groups")
-    members = relationship("User", secondary=group_members, back_populates="groups")
-    messages = relationship("Message", back_populates="group")
-    invitations = relationship("GroupInvitation", back_populates="group")
+    creator = relationship("User", foreign_keys="ChatGroup.created_by")
+    group_memberships = relationship("GroupMember", foreign_keys="GroupMember.group_id")
+    messages = relationship("Message", foreign_keys="Message.group_id")
+    invitations = relationship("GroupInvitation", foreign_keys="GroupInvitation.group_id")
 
 
 class Message(Base):
@@ -84,15 +86,13 @@ class Message(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False)
-    message_type = Column(String(20), default="text")  # text, image, file, ai_response
     
     # Message metadata
-    is_ai_message = Column(Boolean, default=False)
-    ai_model_used = Column(String(50), nullable=True)
-    credits_used = Column(Float, nullable=True)
+    is_ai = Column(Boolean, default=False)  # Match endpoint usage
+    ai_model = Column(String(50), nullable=True)  # Match endpoint usage
     
     # References
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # NULL for AI messages
     group_id = Column(Integer, ForeignKey("chat_groups.id"), nullable=False)
     reply_to_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
     
