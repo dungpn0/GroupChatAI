@@ -32,7 +32,8 @@ export function ChatWindow({ selectedGroupId, sidebarOpen, onToggleSidebar }: Ch
     isLoadingMessages,
     sendMessage,
     setCurrentGroup,
-    loadMessages
+    loadMessages,
+    initializeWebSocket
   } = useChatStore()
   
   const [message, setMessage] = useState('')
@@ -44,6 +45,12 @@ export function ChatWindow({ selectedGroupId, sidebarOpen, onToggleSidebar }: Ch
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Initialize WebSocket once when component mounts
+  useEffect(() => {
+    console.log('Initializing WebSocket listeners...')
+    initializeWebSocket()
+  }, [initializeWebSocket])
 
   // Set current group when selectedGroupId changes
   useEffect(() => {
