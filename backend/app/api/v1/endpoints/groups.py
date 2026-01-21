@@ -547,7 +547,7 @@ async def send_message_to_group(
             "group_id": new_message.group_id,
             "created_at": new_message.created_at.isoformat() if new_message.created_at else None,
         }
-    }, exclude_user_id=current_user.id)
+    }, exclude_user=current_user.id)
 
     return MessageResponse(
         id=new_message.id,
