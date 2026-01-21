@@ -27,6 +27,13 @@ export default function RegisterPage() {
     if (password.length < 6) {
       errors.push('Password must be at least 6 characters long')
     }
+    if (password.length > 50) {
+      errors.push('Password is too long (maximum 50 characters)')
+    }
+    // Check byte length for bcrypt compatibility
+    if (new TextEncoder().encode(password).length > 72) {
+      errors.push('Password contains too many characters (please use shorter password)')
+    }
     return errors
   }
 

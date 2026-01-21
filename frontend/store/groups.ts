@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { apiService } from '@/services/api'
+import toast from 'react-hot-toast'
 
 export interface ChatGroup {
   id: number
@@ -47,6 +48,7 @@ interface GroupStore {
   }) => Promise<ChatGroup>
   joinGroup: (groupId: number) => Promise<void>
   leaveGroup: (groupId: number) => Promise<void>
+  inviteToGroup: (groupId: number, email: string) => Promise<void>
   setError: (error: string | null) => void
 }
 
@@ -121,6 +123,18 @@ export const useGroupStore = create<GroupStore>((set, get) => ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to leave group'
       set({ error: errorMessage })
+      throw error
+    }
+  },
+
+  inviteToGroup: async (groupId: number, email: string) => {
+    try {
+      await apiService.inviteToGroup(groupId, email)
+      toast.success(`Invitation sent to ${email}`)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send invitation'
+      set({ error: errorMessage })
+      toast.error(errorMessage)
       throw error
     }
   },

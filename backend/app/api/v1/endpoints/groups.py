@@ -4,11 +4,13 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import select, and_, func
 from pydantic import BaseModel, Field
 from typing import List, Optional
+from datetime import datetime, timedelta
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models import User, ChatGroup, GroupMember, GroupInvitation, Message
+from app.services.notification_service import NotificationService
+from app.services.email_service import email_service
 import uuid
-from datetime import datetime
 
 router = APIRouter()
 
@@ -158,51 +160,91 @@ async def invite_user_to_group(
     user_stmt = select(User).where(User.email == request.email)
     user_result = await db.execute(user_stmt)
     user_to_invite = user_result.scalar_one_or_none()
-    if not user_to_invite:
-        raise HTTPException(status_code=404, detail="User not found")
     
-    # Check if already a member
-    existing_stmt = select(GroupMember).where(
-        and_(
-            GroupMember.user_id == user_to_invite.id,
-            GroupMember.group_id == group_id
-        )
-    )
-    existing_result = await db.execute(existing_stmt)
-    existing_member = existing_result.scalar_one_or_none()
+    # Get group information for email
+    group_stmt = select(ChatGroup).where(ChatGroup.id == group_id)
+    group_result = await db.execute(group_stmt)
+    group = group_result.scalar_one()
     
-    if existing_member:
-        raise HTTPException(status_code=400, detail="User is already a member")
-    
-    # Create invitation
+    # Create invitation regardless of whether user exists
     invitation = GroupInvitation(
         group_id=group_id,
-        invited_user_id=user_to_invite.id,
-        invited_by=current_user.id,
-        token=str(uuid.uuid4()),
-        created_at=datetime.utcnow()
+        email=request.email,
+        invited_by_id=current_user.id,
+        invitation_code=str(uuid.uuid4()),
+        expires_at=datetime.utcnow() + timedelta(days=7)  # 7 days expiry
     )
     db.add(invitation)
     await db.commit()
+    await db.refresh(invitation)
     
-    return {
-        "message": f"Invitation sent to {request.email}",
-        "invitation_token": invitation.token
-    }
+    if user_to_invite:
+        # User exists - check if already a member
+        existing_stmt = select(GroupMember).where(
+            and_(
+                GroupMember.user_id == user_to_invite.id,
+                GroupMember.group_id == group_id
+            )
+        )
+        existing_result = await db.execute(existing_stmt)
+        existing_member = existing_result.scalar_one_or_none()
+        
+        if existing_member:
+            raise HTTPException(status_code=400, detail="User is already a member")
+        
+        # Create notification for existing user
+        notification_service = NotificationService(db)
+        await notification_service.create_group_invitation_notification(
+            user_id=user_to_invite.id,
+            group_name=group.name,
+            invited_by_name=current_user.full_name or current_user.username,
+            invitation_id=invitation.id
+        )
+        
+        # Also send email as backup
+        await email_service.send_group_invitation_email(
+            to_email=request.email,
+            group_name=group.name,
+            invited_by_name=current_user.full_name or current_user.username,
+            invitation_code=invitation.invitation_code,
+            user_exists=True
+        )
+        
+        return {
+            "message": f"Invitation sent to {request.email} (existing user)",
+            "invitation_token": invitation.invitation_code,
+            "user_exists": True
+        }
+    else:
+        # User doesn't exist - send email invitation to register and join
+        await email_service.send_group_invitation_email(
+            to_email=request.email,
+            group_name=group.name,
+            invited_by_name=current_user.full_name or current_user.username,
+            invitation_code=invitation.invitation_code,
+            user_exists=False
+        )
+        
+        return {
+            "message": f"Invitation email sent to {request.email} (new user)",
+            "invitation_token": invitation.invitation_code,
+            "user_exists": False
+        }
 
 
-@router.post("/join/{token}")
+@router.post("/join/{invitation_code}")
 async def join_group_by_invitation(
-    token: str,
+    invitation_code: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Join group using invitation token"""
+    """Join group using invitation code"""
     invitation_stmt = select(GroupInvitation).where(
         and_(
-            GroupInvitation.token == token,
-            GroupInvitation.invited_user_id == current_user.id,
-            GroupInvitation.accepted_at.is_(None)
+            GroupInvitation.invitation_code == invitation_code,
+            GroupInvitation.email == current_user.email,
+            GroupInvitation.is_used == False,
+            GroupInvitation.expires_at > datetime.utcnow()
         )
     )
     invitation_result = await db.execute(invitation_stmt)
@@ -210,6 +252,17 @@ async def join_group_by_invitation(
     
     if not invitation:
         raise HTTPException(status_code=404, detail="Invalid or expired invitation")
+    
+    # Check if already a member
+    existing_member_stmt = select(GroupMember).where(
+        and_(
+            GroupMember.user_id == current_user.id,
+            GroupMember.group_id == invitation.group_id
+        )
+    )
+    existing_result = await db.execute(existing_member_stmt)
+    if existing_result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="You are already a member of this group")
     
     # Add user to group
     membership = GroupMember(
@@ -219,8 +272,10 @@ async def join_group_by_invitation(
     )
     db.add(membership)
     
-    # Mark invitation as accepted
-    invitation.accepted_at = datetime.utcnow()
+    # Mark invitation as used
+    invitation.is_used = True
+    invitation.used_at = datetime.utcnow()
+    invitation.used_by_id = current_user.id
     await db.commit()
     
     group_stmt = select(ChatGroup).where(ChatGroup.id == invitation.group_id)
@@ -229,6 +284,163 @@ async def join_group_by_invitation(
     
     return {
         "message": f"Successfully joined group '{group.name}'",
+        "group_id": group.id,
+        "group_name": group.name
+    }
+
+
+@router.post("/invitations/{invitation_id}/accept")
+async def accept_group_invitation(
+    invitation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Accept group invitation by invitation ID"""
+    invitation_stmt = select(GroupInvitation).where(
+        and_(
+            GroupInvitation.id == invitation_id,
+            GroupInvitation.email == current_user.email,
+            GroupInvitation.is_used == False,
+            GroupInvitation.expires_at > datetime.utcnow()
+        )
+    )
+    invitation_result = await db.execute(invitation_stmt)
+    invitation = invitation_result.scalar_one_or_none()
+    
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invalid or expired invitation")
+    
+    # Check if already a member
+    existing_member_stmt = select(GroupMember).where(
+        and_(
+            GroupMember.user_id == current_user.id,
+            GroupMember.group_id == invitation.group_id
+        )
+    )
+    existing_result = await db.execute(existing_member_stmt)
+    if existing_result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="You are already a member of this group")
+    
+    # Add user to group
+    membership = GroupMember(
+        user_id=current_user.id,
+        group_id=invitation.group_id,
+        joined_at=datetime.utcnow()
+    )
+    db.add(membership)
+    
+    # Mark invitation as used
+    invitation.is_used = True
+    invitation.used_at = datetime.utcnow()
+    invitation.used_by_id = current_user.id
+    
+    await db.commit()
+    
+    # Get group info
+    group_stmt = select(ChatGroup).where(ChatGroup.id == invitation.group_id)
+    group_result = await db.execute(group_stmt)
+    group = group_result.scalar_one()
+    
+    return {
+        "message": f"Successfully joined group '{group.name}'",
+        "group_id": group.id,
+        "group_name": group.name
+    }
+
+
+@router.get("/invitations/check/{invitation_code}")
+async def check_invitation(
+    invitation_code: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Check if invitation code is valid"""
+    invitation_stmt = select(GroupInvitation).where(
+        and_(
+            GroupInvitation.invitation_code == invitation_code,
+            GroupInvitation.is_used == False,
+            GroupInvitation.expires_at > datetime.utcnow()
+        )
+    )
+    invitation_result = await db.execute(invitation_stmt)
+    invitation = invitation_result.scalar_one_or_none()
+    
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invalid or expired invitation")
+    
+    # Get group info
+    group_stmt = select(ChatGroup).where(ChatGroup.id == invitation.group_id)
+    group_result = await db.execute(group_stmt)
+    group = group_result.scalar_one()
+    
+    # Get invited by user info
+    invited_by_stmt = select(User).where(User.id == invitation.invited_by_id)
+    invited_by_result = await db.execute(invited_by_stmt)
+    invited_by = invited_by_result.scalar_one()
+    
+    return {
+        "group_id": group.id,
+        "group_name": group.name,
+        "invited_by": invited_by.full_name or invited_by.username,
+        "invited_email": invitation.email,
+        "expires_at": invitation.expires_at.isoformat(),
+        "valid": True
+    }
+
+
+@router.post("/invitations/{invitation_code}/join")
+async def join_group_by_code(
+    invitation_code: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Join group using invitation code (for new users who just registered)"""
+    invitation_stmt = select(GroupInvitation).where(
+        and_(
+            GroupInvitation.invitation_code == invitation_code,
+            GroupInvitation.email == current_user.email,
+            GroupInvitation.is_used == False,
+            GroupInvitation.expires_at > datetime.utcnow()
+        )
+    )
+    invitation_result = await db.execute(invitation_stmt)
+    invitation = invitation_result.scalar_one_or_none()
+    
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invalid or expired invitation")
+    
+    # Check if already a member
+    existing_member_stmt = select(GroupMember).where(
+        and_(
+            GroupMember.user_id == current_user.id,
+            GroupMember.group_id == invitation.group_id
+        )
+    )
+    existing_result = await db.execute(existing_member_stmt)
+    if existing_result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="You are already a member of this group")
+    
+    # Add user to group
+    membership = GroupMember(
+        user_id=current_user.id,
+        group_id=invitation.group_id,
+        joined_at=datetime.utcnow()
+    )
+    db.add(membership)
+    
+    # Mark invitation as used
+    invitation.is_used = True
+    invitation.used_at = datetime.utcnow()
+    invitation.used_by_id = current_user.id
+    
+    await db.commit()
+    
+    # Get group info
+    group_stmt = select(ChatGroup).where(ChatGroup.id == invitation.group_id)
+    group_result = await db.execute(group_stmt)
+    group = group_result.scalar_one()
+    
+    return {
+        "message": f"Successfully joined group '{group.name}' using invitation code",
         "group_id": group.id,
         "group_name": group.name
     }

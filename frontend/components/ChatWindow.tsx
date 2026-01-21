@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { useChatStore } from '@/store/chat'
+import { useGroupStore } from '@/store/groups'
 import { wsService } from '@/services/api'
 import { 
   PaperAirplaneIcon,
@@ -11,7 +12,8 @@ import {
   UserGroupIcon,
   PhotoIcon,
   FaceSmileIcon,
-  SparklesIcon
+  SparklesIcon,
+  UserPlusIcon
 } from '@heroicons/react/24/outline'
 
 interface ChatWindowProps {
@@ -22,9 +24,9 @@ interface ChatWindowProps {
 
 export function ChatWindow({ selectedGroupId, sidebarOpen, onToggleSidebar }: ChatWindowProps) {
   const { user } = useAuthStore()
+  const { groups } = useGroupStore()
   const { 
-    currentGroup, 
-    messages, 
+    messages,
     members,
     typingUsers,
     isLoadingMessages,
@@ -35,14 +37,42 @@ export function ChatWindow({ selectedGroupId, sidebarOpen, onToggleSidebar }: Ch
   
   const [message, setMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [hasMoreMessages, setHasMoreMessages] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Set current group when selectedGroupId changes
   useEffect(() => {
-    setCurrentGroup(selectedGroupId)
-  }, [selectedGroupId, setCurrentGroup])
+    if (selectedGroupId) {
+      const group = groups.find(g => g.id === selectedGroupId)
+      if (group) {
+        // Reset pagination state for new group
+        setCurrentPage(1)
+        setHasMoreMessages(true)
+        setIsLoadingMore(false)
+        
+        // Set the group in chat store and trigger load
+        setCurrentGroup(selectedGroupId)
+        loadMessages(selectedGroupId, 1).then((result) => {
+          if (result && typeof result === 'object' && 'hasMore' in result) {
+            setHasMoreMessages(result.hasMore)
+          }
+        }).catch(() => {
+          setHasMoreMessages(false)
+        })
+      }
+    } else {
+      setCurrentGroup(null)
+    }
+  }, [selectedGroupId, groups, setCurrentGroup, loadMessages])
 
+  // Get current group from groupStore
+  const currentGroup = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : null
+  
   // Get messages for current group
   const currentMessages = selectedGroupId ? messages[selectedGroupId] || [] : []
   
@@ -54,6 +84,49 @@ export function ChatWindow({ selectedGroupId, sidebarOpen, onToggleSidebar }: Ch
   useEffect(() => {
     scrollToBottom()
   }, [currentMessages, currentTypingUsers])
+
+  // Scroll event handler để load more messages
+  useEffect(() => {
+    const container = messagesContainerRef.current
+    if (!container || !selectedGroupId) return
+
+    const handleScroll = async () => {
+      if (container.scrollTop === 0 && hasMoreMessages && !isLoadingMore && !isLoadingMessages) {
+        const scrollHeight = container.scrollHeight
+        const scrollTop = container.scrollTop
+        
+        setIsLoadingMore(true)
+        const nextPage = currentPage + 1
+        
+        try {
+          const result = await loadMessages(selectedGroupId, nextPage)
+          setCurrentPage(nextPage)
+          
+          // Update hasMore based on response
+          if (result && typeof result === 'object' && 'hasMore' in result) {
+            setHasMoreMessages(result.hasMore)
+          } else {
+            // Fallback: if we got less than expected, assume no more
+            setHasMoreMessages(false)
+          }
+          
+          // Maintain scroll position after loading new messages
+          setTimeout(() => {
+            const newScrollHeight = container.scrollHeight
+            const heightDiff = newScrollHeight - scrollHeight
+            container.scrollTop = scrollTop + heightDiff
+          }, 100)
+        } catch (error) {
+          console.error('Failed to load more messages:', error)
+        } finally {
+          setIsLoadingMore(false)
+        }
+      }
+    }
+
+    container.addEventListener('scroll', handleScroll)
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [selectedGroupId, currentPage, hasMoreMessages, isLoadingMore, isLoadingMessages, loadMessages])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -135,9 +208,9 @@ export function ChatWindow({ selectedGroupId, sidebarOpen, onToggleSidebar }: Ch
   }
 
   return (
-    <div className="flex flex-col flex-1 bg-white">
+    <div className="flex flex-col flex-1 bg-white h-full">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-white">
+      <div className="flex items-center justify-between p-4 border-b bg-white flex-shrink-0">
         <div className="flex items-center space-x-3">
           {!sidebarOpen && (
             <button
@@ -160,7 +233,7 @@ export function ChatWindow({ selectedGroupId, sidebarOpen, onToggleSidebar }: Ch
             </h2>
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               <span>
-                {currentGroup?.member_count} members
+                {currentGroup?.member_count ? `${currentGroup.member_count} members` : 'Loading...'}
               </span>
               {currentGroup?.ai_enabled && (
                 <>
@@ -175,73 +248,97 @@ export function ChatWindow({ selectedGroupId, sidebarOpen, onToggleSidebar }: Ch
           </div>
         </div>
         
-        <button className="p-2 text-gray-500 hover:text-gray-700">
-          <Cog6ToothIcon className="w-6 h-6" />
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="p-2 text-gray-500 hover:text-gray-700"
+            title="Invite member"
+          >
+            <UserPlusIcon className="w-6 h-6" />
+          </button>
+          <button className="p-2 text-gray-500 hover:text-gray-700">
+            <Cog6ToothIcon className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {isLoadingMessages ? (
-          <div className="flex justify-center items-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          </div>
-        ) : currentMessages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
-            <UserGroupIcon className="w-12 h-12 mb-4" />
-            <p>No messages yet. Start the conversation!</p>
-          </div>
-        ) : (
-          currentMessages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.sender?.id === user?.id ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                msg.sender?.id === user?.id
-                  ? 'bg-indigo-600 text-white'
-                  : msg.is_ai_message
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                  : 'bg-gray-200 text-gray-900'
-              }`}>
-                {msg.sender?.id !== user?.id && (
-                  <div className="text-xs opacity-75 mb-1 flex items-center">
-                    {msg.is_ai_message && <SparklesIcon className="w-3 h-3 mr-1" />}
-                    {msg.sender?.username || 'Unknown'}
-                  </div>
-                )}
-                <p className="text-sm">{msg.content}</p>
-                <p className="text-xs opacity-75 mt-1">
-                  {formatTime(msg.created_at)}
-                </p>
+      {/* Messages Container - với scroll riêng biệt */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        <div 
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto p-4 space-y-4"
+        >
+          {/* Load More Indicator */}
+          {isLoadingMore && (
+            <div className="flex justify-center py-2">
+              <div className="flex items-center space-x-2 text-gray-500">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                <span className="text-sm">Loading more messages...</span>
               </div>
             </div>
-          ))
-        )}
-        
-        {/* Typing indicator */}
-        {currentTypingUsers.length > 0 && (
-          <div className="flex justify-start">
-            <div className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg max-w-xs">
-              <div className="flex items-center space-x-1">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+          )}
+          
+          {isLoadingMessages ? (
+            <div className="flex justify-center items-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          ) : currentMessages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+              <UserGroupIcon className="w-12 h-12 mb-4" />
+              <p>No messages yet. Start the conversation!</p>
+            </div>
+          ) : (
+            currentMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex ${msg.user_id === user?.id ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                  msg.user_id === user?.id
+                    ? 'bg-indigo-600 text-white'
+                    : msg.is_ai_message
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                    : 'bg-gray-200 text-gray-900'
+                }`}>
+                  {msg.user_id !== user?.id && (
+                    <div className="text-xs opacity-75 mb-1 flex items-center">
+                      {msg.is_ai_message && <SparklesIcon className="w-3 h-3 mr-1" />}
+                      {msg.is_ai_message ? 'AI Assistant' : (msg.sender_username || 'Unknown')}
+                    </div>
+                  )}
+                  <p className="text-sm">{msg.content}</p>
+                  <p className="text-xs opacity-75 mt-1">
+                    {formatTime(msg.created_at)}
+                  </p>
                 </div>
-                <span className="text-xs ml-2">
-                  {currentTypingUsers.length === 1 ? 'Someone is typing...' : `${currentTypingUsers.length} people are typing...`}
-                </span>
+              </div>
+            ))
+          )}
+          
+          {/* Typing indicator */}
+          {currentTypingUsers.length > 0 && (
+            <div className="flex justify-start">
+              <div className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg max-w-xs">
+                <div className="flex items-center space-x-1">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                  <span className="text-xs ml-2">
+                    {currentTypingUsers.length === 1 ? 'Someone is typing...' : `${currentTypingUsers.length} people are typing...`}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-        
-        <div ref={messagesEndRef} />
+          )}
+          
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Message Input */}
-      <div className="p-4 border-t border-gray-200 bg-white">
+      <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
           {/* Attachment Button */}
           <button
@@ -284,6 +381,84 @@ export function ChatWindow({ selectedGroupId, sidebarOpen, onToggleSidebar }: Ch
           >
             <PaperAirplaneIcon className="w-5 h-5" />
           </button>
+        </form>
+      </div>
+
+      {/* Invite Modal */}
+      {showInviteModal && (
+        <InviteModal 
+          groupId={selectedGroupId}
+          onClose={() => setShowInviteModal(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Invite Modal Component
+interface InviteModalProps {
+  groupId: number
+  onClose: () => void
+}
+
+function InviteModal({ groupId, onClose }: InviteModalProps) {
+  const [email, setEmail] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const { inviteToGroup } = useGroupStore()
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) return
+
+    setIsLoading(true)
+    try {
+      await inviteToGroup(groupId, email.trim())
+      setEmail('')
+      onClose()
+    } catch (error) {
+      console.error('Failed to invite user:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 className="text-lg font-semibold mb-4">Invite Member</h3>
+        
+        <form onSubmit={handleInvite}>
+          <div className="mb-4">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              Email Address
+            </label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Enter email address"
+              required
+            />
+          </div>
+
+          <div className="flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!email.trim() || isLoading}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {isLoading ? 'Inviting...' : 'Send Invite'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

@@ -69,13 +69,13 @@ export interface ChatGroup {
 export interface Message {
   id: number
   content: string
-  user_id: number
+  user_id?: number
+  sender_username?: string
   group_id: number
   is_ai_message: boolean
   ai_model_used?: string
   credits_used?: number
   created_at: string
-  sender?: User
 }
 
 export interface GroupMember {
@@ -194,13 +194,10 @@ export const groupsAPI = {
 
 // Messages API
 export const messagesAPI = {
-  getMessages: async (groupId: number, page = 1, limit = 50): Promise<{
-    messages: Message[]
-    total: number
-    has_more: boolean
-  }> => {
+  getMessages: async (groupId: number, page = 1, limit = 20): Promise<Message[]> => {
+    const offset = (page - 1) * limit
     const response = await api.get(`/api/v1/groups/${groupId}/messages`, {
-      params: { page, limit }
+      params: { offset, limit }
     })
     return response.data
   },
@@ -443,6 +440,57 @@ export class WebSocketService {
       this.ws = null
     }
   }
+}
+
+// Notifications
+export interface Notification {
+  id: number
+  type: string
+  title: string
+  message: string
+  data?: any
+  user_id: number
+  related_id?: number
+  is_read: boolean
+  created_at: string
+  read_at?: string
+}
+
+export interface NotificationSummary {
+  total_count: number
+  unread_count: number
+  notifications: Notification[]
+}
+
+// Notifications API
+export const notificationsAPI = {
+  getNotifications: async (limit = 20, offset = 0, unread_only = false): Promise<NotificationSummary> => {
+    const response = await api.get('/api/v1/notifications/', {
+      params: { limit, offset, unread_only }
+    })
+    return response.data
+  },
+
+  markAsRead: async (notificationId: number): Promise<void> => {
+    await api.put(`/api/v1/notifications/${notificationId}/read`)
+  },
+
+  markAllAsRead: async (): Promise<void> => {
+    await api.put('/api/v1/notifications/read-all')
+  },
+
+  getCount: async (): Promise<{ total_count: number; unread_count: number }> => {
+    const response = await api.get('/api/v1/notifications/count')
+    return response.data
+  },
+}
+
+// Additional Group API for accepting invitations
+export const groupInvitationsAPI = {
+  acceptInvitation: async (invitationId: number): Promise<{ message: string; group_id: number; group_name: string }> => {
+    const response = await api.post(`/api/v1/groups/invitations/${invitationId}/accept`)
+    return response.data
+  },
 }
 
 // Create singleton instance

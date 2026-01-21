@@ -17,7 +17,7 @@ interface ChatState {
   loadGroups: () => Promise<void>
   loadGroup: (groupId: number) => Promise<void>
   setCurrentGroup: (groupId: number | null) => void
-  loadMessages: (groupId: number, page?: number) => Promise<void>
+  loadMessages: (groupId: number, page?: number) => Promise<{messages: any[], hasMore: boolean, total: number} | void>
   sendMessage: (groupId: number, content: string) => Promise<void>
   createGroup: (data: {
     name: string
@@ -76,32 +76,49 @@ export const useChatStore = create<ChatState>()(
       },
 
       setCurrentGroup: (groupId: number | null) => {
-        const { groups } = get()
-        const currentGroup = groupId ? groups.find(g => g.id === groupId) || null : null
+        console.log('setCurrentGroup:', { groupId })
         
         // Leave previous group if switching
         if (get().currentGroupId && get().currentGroupId !== groupId) {
-          wsService.leaveGroup(get().currentGroupId!)
+          try {
+            wsService.leaveGroup(get().currentGroupId!)
+          } catch (e) {
+            console.warn('Failed to leave group via WebSocket:', e)
+          }
         }
         
-        set({ currentGroupId: groupId, currentGroup })
+        set({ currentGroupId: groupId, currentGroup: null })
         
-        // Join new group if selected
-        if (groupId && currentGroup) {
-          wsService.joinGroup(groupId)
-          get().loadMessages(groupId)
-          get().loadGroupMembers(groupId)
+        // Join new group if selected (only if WebSocket is connected)
+        if (groupId) {
+          console.log('Setting current group:', groupId)
+          try {
+            wsService.joinGroup(groupId)
+          } catch (e) {
+            console.warn('Failed to join group via WebSocket (will retry when connected):', e)
+          }
         }
       },
 
       loadMessages: async (groupId: number, page = 1) => {
+        console.log('loadMessages called:', { groupId, page })
         set({ isLoadingMessages: true })
         try {
-          const response = await messagesAPI.getMessages(groupId, page, 50)
+          const response: Message[] = await messagesAPI.getMessages(groupId, page, 20) // Load 20 messages per page
+          console.log('loadMessages response:', response)
           const currentMessages = get().messages[groupId] || []
           
-          // If it's page 1, replace messages, otherwise append (for pagination)
-          const newMessages = page === 1 ? response.messages : [...response.messages, ...currentMessages]
+          // API trả về array messages
+          const messagesArray = response
+          
+          let newMessages
+          if (page === 1) {
+            // First page - replace all messages
+            newMessages = messagesArray
+          } else {
+            // Subsequent pages - prepend to existing messages (older messages go first)
+            newMessages = [...messagesArray, ...currentMessages]
+          }
           
           set({ 
             messages: {
@@ -112,10 +129,18 @@ export const useChatStore = create<ChatState>()(
             },
             isLoadingMessages: false
           })
+          
+          // Return info about pagination
+          return {
+            messages: messagesArray,
+            hasMore: messagesArray.length === 20, // If we got full page, assume there are more
+            total: messagesArray.length
+          }
         } catch (error: any) {
           console.error('Failed to load messages:', error)
           toast.error('Failed to load messages')
           set({ isLoadingMessages: false })
+          throw error
         }
       },
 

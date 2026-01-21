@@ -1,8 +1,11 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 import logging
+from pydantic import ValidationError
 
 from app.core.config import settings
 from app.core.database import engine, Base
@@ -50,6 +53,37 @@ app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=settings.ALLOWED_HOSTS
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle pydantic validation errors"""
+    # Extract the first error message for better user experience
+    error_detail = exc.errors()[0]
+    field_name = error_detail.get('loc', ['unknown'])[-1]
+    error_msg = error_detail.get('msg', 'Validation error')
+    
+    # Handle custom validation messages (like our password validation)
+    if error_detail.get('type') == 'value_error':
+        error_msg = str(error_detail.get('ctx', {}).get('message', error_msg))
+    
+    return JSONResponse(
+        status_code=422,
+        content={"detail": f"{error_msg}"}
+    )
+
+
+@app.exception_handler(ValidationError)  
+async def pydantic_validation_exception_handler(request: Request, exc: ValidationError):
+    """Handle pydantic ValidationError"""
+    error_detail = exc.errors()[0] 
+    error_msg = error_detail.get('msg', 'Validation error')
+    
+    return JSONResponse(
+        status_code=422,
+        content={"detail": error_msg}
+    )
+
 
 # Include API router
 app.include_router(api_router, prefix="/api/v1")

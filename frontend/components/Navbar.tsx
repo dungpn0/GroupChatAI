@@ -3,9 +3,9 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useAuthStore } from '@/store/auth'
+import { NotificationDropdown } from '@/components'
 import { 
   UserCircleIcon,
-  BellIcon,
   GiftIcon,
   ChevronDownIcon,
   CreditCardIcon,
@@ -43,12 +43,7 @@ export function Navbar() {
           </button>
 
           {/* Notifications */}
-          <button className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors relative">
-            <BellIcon className="w-5 h-5" />
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white">
-              3
-            </span>
-          </button>
+          <NotificationDropdown />
 
           {/* User Account Dropdown */}
           <div className="relative">

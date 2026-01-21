@@ -48,6 +48,7 @@ class User(Base):
     group_memberships = relationship("GroupMember", foreign_keys="GroupMember.user_id")
     messages = relationship("Message", foreign_keys="Message.user_id")
     credit_transactions = relationship("CreditTransaction", back_populates="user")
+    notifications = relationship("Notification", back_populates="user")
 
 
 class ChatGroup(Base):
@@ -132,6 +133,30 @@ class GroupInvitation(Base):
     group = relationship("ChatGroup", back_populates="invitations")
     invited_by = relationship("User", foreign_keys=[invited_by_id])
     used_by = relationship("User", foreign_keys=[used_by_id])
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    type = Column(String(50), nullable=False)  # group_invitation, group_message, system, etc.
+    title = Column(String(255), nullable=False)
+    message = Column(String(1000), nullable=False)
+    data = Column(Text, nullable=True)  # JSON data for additional info
+    
+    # Status
+    is_read = Column(Boolean, default=False)
+    
+    # References
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    related_id = Column(Integer, nullable=True)  # ID của invitation, message, etc.
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    read_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    user = relationship("User", back_populates="notifications")
 
 
 class CreditTransaction(Base):
