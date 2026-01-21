@@ -326,10 +326,8 @@ export class WebSocketService {
       }
 
       this.ws.onmessage = (event) => {
-        console.log('WebSocket raw message received:', event.data)
         try {
           const message: WebSocketMessage = JSON.parse(event.data)
-          console.log('WebSocket parsed message:', message)
           this.handleMessage(message)
         } catch (error) {
           console.error('Error parsing WebSocket message:', error)
@@ -383,13 +381,9 @@ export class WebSocketService {
   }
 
   private handleMessage(message: WebSocketMessage) {
-    console.log('handleMessage called with:', message)
-    console.log('Available handlers for type', message.type, ':', this.messageHandlers[message.type])
     const handlers = this.messageHandlers[message.type] || []
-    console.log('Found', handlers.length, 'handlers for message type', message.type)
     handlers.forEach(handler => {
       try {
-        console.log('Calling handler for', message.type)
         handler(message)
       } catch (error) {
         console.error('Error in message handler:', error)
@@ -398,12 +392,10 @@ export class WebSocketService {
   }
 
   onMessage(type: string, handler: Function) {
-    console.log('Registering handler for message type:', type)
     if (!this.messageHandlers[type]) {
       this.messageHandlers[type] = []
     }
     this.messageHandlers[type].push(handler)
-    console.log('Total handlers for', type, ':', this.messageHandlers[type].length)
   }
 
   offMessage(type: string, handler: Function) {

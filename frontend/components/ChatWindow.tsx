@@ -48,7 +48,6 @@ export function ChatWindow({ selectedGroupId, sidebarOpen, onToggleSidebar }: Ch
 
   // Initialize WebSocket once when component mounts
   useEffect(() => {
-    console.log('Initializing WebSocket listeners...')
     initializeWebSocket()
   }, [initializeWebSocket])
 

@@ -224,22 +224,17 @@ export const useChatStore = create<ChatState>()(
       },
 
       addMessage: (message: Message) => {
-        console.log('addMessage called with:', message)
         const currentMessages = get().messages[message.group_id] || []
-        console.log('Current messages for group', message.group_id, ':', currentMessages.length)
         
         // Check if message already exists (to avoid duplicates)
         const exists = currentMessages.find(m => m.id === message.id)
         if (!exists) {
-          console.log('Adding new message to store')
           set({
             messages: {
               ...get().messages,
               [message.group_id]: [...currentMessages, message]
             }
           })
-        } else {
-          console.log('Message already exists, skipping')
         }
       },
 
@@ -270,9 +265,7 @@ export const useChatStore = create<ChatState>()(
 
         // Listen for new messages (current format)
         wsService.onMessage('new_message', (wsMessage: any) => {
-          console.log('Received new_message via WebSocket:', wsMessage)
           const message = wsMessage.message as Message
-          console.log('Parsed message:', message)
           get().addMessage(message)
         })
 

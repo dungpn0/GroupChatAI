@@ -536,19 +536,19 @@ async def send_message_to_group(
     await db.refresh(new_message)
 
     # Broadcast new message to group members via WebSocket
-    print(f"Broadcasting new_message to group {group_id}")
     message_payload = {
         "type": "new_message",
         "message": {
             "id": new_message.id,
             "content": new_message.content,
             "user_id": new_message.user_id,
+            "sender_username": current_user.username,
             "user_email": current_user.email,
             "group_id": new_message.group_id,
+            "is_ai_message": False,
             "created_at": new_message.created_at.isoformat() if new_message.created_at else None,
         }
     }
-    print(f"Message payload: {message_payload}")
     await manager.send_to_group(group_id, message_payload, exclude_user=current_user.id)
 
     return MessageResponse(
