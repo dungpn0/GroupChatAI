@@ -44,9 +44,9 @@ class User(Base):
     last_login = Column(DateTime, nullable=True)
     
     # Relationships
-    created_groups = relationship("ChatGroup", foreign_keys="ChatGroup.created_by")
+    created_groups = relationship("ChatGroup", foreign_keys="ChatGroup.creator_id")
     group_memberships = relationship("GroupMember", foreign_keys="GroupMember.user_id")
-    messages = relationship("Message", foreign_keys="Message.sender_id")
+    messages = relationship("Message", foreign_keys="Message.user_id")
     credit_transactions = relationship("CreditTransaction", back_populates="user")
 
 
@@ -68,14 +68,14 @@ class ChatGroup(Base):
     ai_model = Column(String(50), nullable=True)  # openai-gpt4, openai-gpt3.5, gemini
     
     # Creator
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # Match endpoint usage
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Match database schema
     
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
     # Relationships
-    creator = relationship("User", foreign_keys="ChatGroup.created_by")
+    creator = relationship("User", foreign_keys="ChatGroup.creator_id")
     group_memberships = relationship("GroupMember", foreign_keys="GroupMember.group_id")
     messages = relationship("Message", foreign_keys="Message.group_id")
     invitations = relationship("GroupInvitation", foreign_keys="GroupInvitation.group_id")
@@ -87,12 +87,14 @@ class Message(Base):
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False)
     
-    # Message metadata
-    is_ai = Column(Boolean, default=False)  # Match endpoint usage
-    ai_model = Column(String(50), nullable=True)  # Match endpoint usage
+    # Message metadata - match database schema
+    message_type = Column(String(50), nullable=True)
+    is_ai_message = Column(Boolean, default=False)
+    ai_model_used = Column(String(50), nullable=True)
+    credits_used = Column(Float, nullable=True)
     
-    # References
-    sender_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # NULL for AI messages
+    # References - match database schema
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # NULL for AI messages  
     group_id = Column(Integer, ForeignKey("chat_groups.id"), nullable=False)
     reply_to_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
     

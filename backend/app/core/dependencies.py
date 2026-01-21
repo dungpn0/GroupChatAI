@@ -26,15 +26,18 @@ async def get_current_user(
         token_str = token.credentials if hasattr(token, 'credentials') else str(token)
         payload = verify_token(token_str)
         
-        user_id: int = payload.get("sub")
-        if user_id is None:
+        user_id_str = payload.get("sub")
+        if user_id_str is None:
             raise credentials_exception
+        
+        # Convert string user_id to integer for database query
+        user_id: int = int(user_id_str)
             
     except Exception:
         raise credentials_exception
     
     user_service = UserService(db)
-    user = await user_service.get_user(user_id)
+    user = await user_service.get_user_by_id(user_id)
     
     if user is None:
         raise credentials_exception

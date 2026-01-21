@@ -1,5 +1,6 @@
 export { Navbar } from './Navbar'
 export { Sidebar } from './Sidebar' 
 export { ChatWindow } from './ChatWindow'
+export { CreateGroupModal } from './CreateGroupModal'
 export { LoadingSpinner } from './LoadingSpinner'
 export { default as GoogleSignInButton } from './GoogleSignInButton'

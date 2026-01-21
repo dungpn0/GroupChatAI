@@ -4,48 +4,82 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuthStore } from '@/store/auth'
+import { GoogleSignInButton } from '@/components'
 import toast from 'react-hot-toast'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 
 export default function RegisterPage() {
   const router = useRouter()
-  const { register, isLoading } = useAuthStore()
+  const { register, loginWithGoogle, isLoading } = useAuthStore()
   const [formData, setFormData] = useState({
     email: '',
     username: '',
-    fullName: '',
     password: '',
     confirmPassword: '',
+    fullName: '',
   })
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([])
+
+  const validatePassword = (password: string) => {
+    const errors = []
+    if (password.length < 6) {
+      errors.push('Password must be at least 6 characters long')
+    }
+    return errors
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
       toast.error('Passwords do not match')
       return
     }
 
-    if (formData.password.length < 6) {
-      toast.error('Password must be at least 6 characters')
+    // Validate password strength
+    const errors = validatePassword(formData.password)
+    if (errors.length > 0) {
+      toast.error(errors[0])
       return
     }
-    
+
     try {
       await register(formData.email, formData.username, formData.password, formData.fullName)
-      toast.success('Registration successful!')
+      toast.success('Registration successful! Welcome to GroupChatAI!')
       router.push('/chat')
     } catch (error: any) {
       toast.error(error.message || 'Registration failed')
     }
   }
 
+  const handleGoogleSuccess = async (token: string) => {
+    try {
+      await loginWithGoogle(token)
+      toast.success('Welcome to GroupChatAI!')
+      router.push('/chat')
+    } catch (error: any) {
+      console.error('Google registration error:', error)
+    }
+  }
+
+  const handleGoogleError = (error: string) => {
+    toast.error(`Google sign-up failed: ${error}`)
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [name]: value
     }))
+
+    // Real-time password validation
+    if (name === 'password') {
+      setPasswordErrors(validatePassword(value))
+    }
   }
 
   return (

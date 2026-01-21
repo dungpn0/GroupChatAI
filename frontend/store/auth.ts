@@ -28,6 +28,7 @@ interface AuthState {
   refreshUser: () => Promise<void>
   setUser: (user: User) => void
   updateCredits: (credits: number) => void
+  updateProfile: (data: { username?: string; full_name?: string; email?: string }) => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -176,6 +177,23 @@ export const useAuthStore = create<AuthState>()(
         const { user } = get()
         if (user) {
           set({ user: { ...user, credits } })
+        }
+      },
+
+      updateProfile: async (data: { username?: string; full_name?: string; email?: string }) => {
+        const { user, token } = get()
+        if (!user || !token) {
+          throw new Error('Not authenticated')
+        }
+
+        try {
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+          const response = await axios.put(`${API_URL}/api/v1/users/me`, data)
+          
+          const updatedUser = response.data
+          set({ user: updatedUser })
+        } catch (error: any) {
+          throw new Error(error.response?.data?.detail || 'Failed to update profile')
         }
       },
     }),

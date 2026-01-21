@@ -64,11 +64,11 @@ async def get_messages(
             {
                 "id": msg.id,
                 "content": msg.content,
-                "sender_id": msg.sender_id,
+                "user_id": msg.user_id,
                 "group_id": msg.group_id,
                 "created_at": msg.created_at.isoformat(),
-                "is_ai": msg.is_ai,
-                "ai_model": msg.ai_model
+                "is_ai_message": msg.is_ai_message,
+                "ai_model_used": msg.ai_model_used
             } for msg in messages
         ],
         "total": len(messages),
@@ -102,10 +102,10 @@ async def send_message(
     # Create message
     new_message = Message(
         content=request.content,
-        sender_id=current_user.id,
+        user_id=current_user.id,
         group_id=request.group_id,
         created_at=datetime.utcnow(),
-        is_ai=False
+        is_ai_message=False
     )
     
     db.add(new_message)
@@ -146,10 +146,10 @@ async def send_ai_message(
     # Save user's message first
     user_message = Message(
         content=request.message,
-        sender_id=current_user.id,
+        user_id=current_user.id,
         group_id=request.group_id,
         created_at=datetime.utcnow(),
-        is_ai=False
+        is_ai_message=False
     )
     db.add(user_message)
     
@@ -164,11 +164,11 @@ async def send_ai_message(
     if result.get("success"):
         ai_message = Message(
             content=result.get("response"),
-            sender_id=None,  # AI messages have no sender_id
+            user_id=None,  # AI messages have no user_id
             group_id=request.group_id,
             created_at=datetime.utcnow(),
-            is_ai=True,
-            ai_model=request.model
+            is_ai_message=True,
+            ai_model_used=request.model
         )
         db.add(ai_message)
     

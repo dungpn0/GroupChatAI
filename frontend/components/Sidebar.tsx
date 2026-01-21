@@ -1,13 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/auth'
+import { useGroupStore } from '@/store/groups'
+import { CreateGroupModal } from './CreateGroupModal'
 import { 
   MagnifyingGlassIcon, 
   PlusIcon, 
   UserGroupIcon,
   CreditCardIcon,
-  Bars3Icon
+  Bars3Icon,
+  SparklesIcon
 } from '@heroicons/react/24/outline'
 
 interface SidebarProps {
@@ -16,48 +19,41 @@ interface SidebarProps {
   onToggleSidebar: () => void
 }
 
-interface ChatGroup {
-  id: number
-  name: string
-  lastMessage?: string
-  lastMessageTime?: string
-  unreadCount?: number
-  avatar?: string
-}
-
 export function Sidebar({ selectedGroupId, onSelectGroup, onToggleSidebar }: SidebarProps) {
-  const { user } = useAuthStore()
+  const { user, logout } = useAuthStore()
+  const { groups, loading, error, fetchGroups } = useGroupStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateGroup, setShowCreateGroup] = useState(false)
 
-  // Mock data - in real app this would come from API
-  const [groups, setGroups] = useState<ChatGroup[]>([
-    {
-      id: 1,
-      name: 'General Discussion',
-      lastMessage: 'Hey everyone! How is everyone doing?',
-      lastMessageTime: '2 min ago',
-      unreadCount: 3,
-    },
-    {
-      id: 2,
-      name: 'Project Team',
-      lastMessage: 'AI: The meeting is scheduled for tomorrow at 2 PM.',
-      lastMessageTime: '1 hour ago',
-      unreadCount: 0,
-    },
-    {
-      id: 3,
-      name: 'Random',
-      lastMessage: 'Did you see the latest AI updates?',
-      lastMessageTime: '3 hours ago',
-      unreadCount: 1,
-    },
-  ])
+  // Fetch groups on component mount
+  useEffect(() => {
+    fetchGroups()
+  }, [fetchGroups])
+
+  // Filter groups based on search query
+  const filteredGroups = groups.filter(group => 
+    group.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    group.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   const handleCreateGroup = () => {
-    // In real app, this would open a modal or navigate to create group page
-    setShowCreateGroup(true)
+    setShowCreateGroup(!showCreateGroup)
+  }
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInMs = now.getTime() - date.getTime()
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60))
+    
+    if (diffInMinutes < 1) return 'now'
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`
+    if (diffInMinutes < 24 * 60) return `${Math.floor(diffInMinutes / 60)}h ago`
+    return `${Math.floor(diffInMinutes / (24 * 60))}d ago`
+  }
+
+  const handleLogout = () => {
+    logout()
   }
 
   return (
@@ -96,101 +92,111 @@ export function Sidebar({ selectedGroupId, onSelectGroup, onToggleSidebar }: Sid
       </div>
 
       {/* Groups List */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
-        <div className="p-2 space-y-1">
-          {groups
-            .filter(group => group.name.toLowerCase().includes(searchQuery.toLowerCase()))
-            .map((group) => (
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="flex justify-center items-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+          </div>
+        ) : error ? (
+          <div className="p-4 text-center text-red-500">
+            <p className="text-sm">Failed to load groups</p>
+            <button 
+              onClick={fetchGroups}
+              className="text-indigo-600 hover:text-indigo-700 text-sm mt-2"
+            >
+              Try again
+            </button>
+          </div>
+        ) : filteredGroups.length === 0 ? (
+          <div className="p-4 text-center text-gray-500">
+            {searchQuery ? 'No groups found' : 'No groups yet'}
+          </div>
+        ) : (
+          <div className="p-2 space-y-1">
+            {filteredGroups.map((group) => (
               <button
                 key={group.id}
                 onClick={() => onSelectGroup(group.id)}
                 className={`w-full p-3 rounded-lg text-left transition-colors ${
                   selectedGroupId === group.id
-                    ? 'bg-indigo-50 border-indigo-200'
+                    ? 'bg-indigo-50 border-indigo-200 border'
                     : 'hover:bg-gray-50'
                 }`}
               >
                 <div className="flex items-start space-x-3">
-                  {/* Group Avatar */}
-                  <div className="flex-shrink-0">
-                    {group.avatar ? (
-                      <img
-                        src={group.avatar}
-                        alt={group.name}
-                        className="w-10 h-10 rounded-full"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                        <UserGroupIcon className="w-5 h-5 text-white" />
-                      </div>
-                    )}
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <span className="text-white font-semibold text-sm">
+                      {group.name.charAt(0).toUpperCase()}
+                    </span>
                   </div>
-
+                  
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {group.name}
                       </p>
-                      {group.lastMessageTime && (
-                        <p className="text-xs text-gray-500">
-                          {group.lastMessageTime}
-                        </p>
-                      )}
+                      <p className="text-xs text-gray-500">
+                        {formatTime(group.created_at)}
+                      </p>
                     </div>
                     
-                    {group.lastMessage && (
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-xs text-gray-600 truncate">
-                          {group.lastMessage}
-                        </p>
-                        {group.unreadCount && group.unreadCount > 0 && (
-                          <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
-                            {group.unreadCount}
-                          </span>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-gray-500 truncate">
+                        {group.description || `${group.member_count} members`}
+                      </p>
+                      
+                      <div className="flex items-center space-x-1">
+                        {group.ai_enabled && (
+                          <div className="flex items-center space-x-1">
+                            <SparklesIcon className="w-3 h-3 text-purple-500" />
+                            <span className="text-xs text-purple-600">
+                              {group.ai_model}
+                            </span>
+                          </div>
                         )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               </button>
             ))}
-        </div>
-      </div>
-
-      {/* Footer - Credits and Buy More */}
-      <div className="p-4 border-t border-gray-200 bg-gray-50">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            <CreditCardIcon className="w-4 h-4 text-green-600" />
-            <span className="text-sm font-medium text-gray-700">Credits</span>
           </div>
-          <span className="text-sm font-bold text-green-600">
-            {user?.credits?.toFixed(1) || '0.0'}
-          </span>
+        )}
+      </div>
+      {/* Footer */}
+      <div className="p-4 border-t border-gray-200">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center">
+              <span className="text-white text-sm font-medium">
+                {user?.username?.charAt(0)?.toUpperCase() || 'U'}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {user?.username || 'User'}
+              </p>
+              <div className="flex items-center space-x-1 text-xs text-gray-500">
+                <CreditCardIcon className="w-3 h-3" />
+                <span>{user?.credits || 0} credits</span>
+              </div>
+            </div>
+          </div>
         </div>
         
-        <button className="w-full px-3 py-2 text-sm bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-lg hover:from-green-600 hover:to-blue-600 transition-all">
-          Buy More Credits
+        <button
+          onClick={handleLogout}
+          className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+        >
+          Sign out
         </button>
       </div>
 
-      {/* Create Group Modal (placeholder) */}
-      {showCreateGroup && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium mb-4">Create New Group</h3>
-            <p className="text-gray-600 mb-4">
-              This feature is coming soon! You'll be able to create new chat groups with AI integration.
-            </p>
-            <button
-              onClick={() => setShowCreateGroup(false)}
-              className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Create Group Modal */}
+      <CreateGroupModal 
+        isOpen={showCreateGroup} 
+        onClose={() => setShowCreateGroup(false)} 
+      />
     </div>
   )
 }

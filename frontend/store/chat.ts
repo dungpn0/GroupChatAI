@@ -1,0 +1,286 @@
+import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import { groupsAPI, messagesAPI, ChatGroup, Message, GroupMember, wsService } from '@/services/api'
+import toast from 'react-hot-toast'
+
+interface ChatState {
+  groups: ChatGroup[]
+  currentGroupId: number | null
+  currentGroup: ChatGroup | null
+  messages: { [groupId: number]: Message[] }
+  members: { [groupId: number]: GroupMember[] }
+  isLoading: boolean
+  isLoadingMessages: boolean
+  typingUsers: { [groupId: number]: number[] }
+  
+  // Actions
+  loadGroups: () => Promise<void>
+  loadGroup: (groupId: number) => Promise<void>
+  setCurrentGroup: (groupId: number | null) => void
+  loadMessages: (groupId: number, page?: number) => Promise<void>
+  sendMessage: (groupId: number, content: string) => Promise<void>
+  createGroup: (data: {
+    name: string
+    description?: string
+    is_private?: boolean
+    ai_enabled?: boolean
+    ai_model?: string
+  }) => Promise<ChatGroup | null>
+  joinGroup: (groupId: number) => Promise<void>
+  leaveGroup: (groupId: number) => Promise<void>
+  loadGroupMembers: (groupId: number) => Promise<void>
+  addMessage: (message: Message) => void
+  setTyping: (groupId: number, userId: number, isTyping: boolean) => void
+  initializeWebSocket: () => void
+  reset: () => void
+}
+
+export const useChatStore = create<ChatState>()(
+  persist(
+    (set, get) => ({
+      groups: [],
+      currentGroupId: null,
+      currentGroup: null,
+      messages: {},
+      members: {},
+      isLoading: false,
+      isLoadingMessages: false,
+      typingUsers: {},
+
+      loadGroups: async () => {
+        set({ isLoading: true })
+        try {
+          const groups = await groupsAPI.getGroups()
+          set({ groups, isLoading: false })
+        } catch (error: any) {
+          console.error('Failed to load groups:', error)
+          toast.error('Failed to load chat groups')
+          set({ isLoading: false })
+        }
+      },
+
+      loadGroup: async (groupId: number) => {
+        try {
+          const group = await groupsAPI.getGroup(groupId)
+          const groups = get().groups.map(g => 
+            g.id === groupId ? group : g
+          )
+          set({ 
+            groups,
+            currentGroup: group
+          })
+        } catch (error: any) {
+          console.error('Failed to load group:', error)
+          toast.error('Failed to load group details')
+        }
+      },
+
+      setCurrentGroup: (groupId: number | null) => {
+        const { groups } = get()
+        const currentGroup = groupId ? groups.find(g => g.id === groupId) || null : null
+        
+        // Leave previous group if switching
+        if (get().currentGroupId && get().currentGroupId !== groupId) {
+          wsService.leaveGroup(get().currentGroupId!)
+        }
+        
+        set({ currentGroupId: groupId, currentGroup })
+        
+        // Join new group if selected
+        if (groupId && currentGroup) {
+          wsService.joinGroup(groupId)
+          get().loadMessages(groupId)
+          get().loadGroupMembers(groupId)
+        }
+      },
+
+      loadMessages: async (groupId: number, page = 1) => {
+        set({ isLoadingMessages: true })
+        try {
+          const response = await messagesAPI.getMessages(groupId, page, 50)
+          const currentMessages = get().messages[groupId] || []
+          
+          // If it's page 1, replace messages, otherwise append (for pagination)
+          const newMessages = page === 1 ? response.messages : [...response.messages, ...currentMessages]
+          
+          set({ 
+            messages: {
+              ...get().messages,
+              [groupId]: newMessages.sort((a, b) => 
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              )
+            },
+            isLoadingMessages: false
+          })
+        } catch (error: any) {
+          console.error('Failed to load messages:', error)
+          toast.error('Failed to load messages')
+          set({ isLoadingMessages: false })
+        }
+      },
+
+      sendMessage: async (groupId: number, content: string) => {
+        try {
+          const message = await messagesAPI.sendMessage(groupId, content)
+          
+          // Add message optimistically
+          const currentMessages = get().messages[groupId] || []
+          set({
+            messages: {
+              ...get().messages,
+              [groupId]: [...currentMessages, message]
+            }
+          })
+        } catch (error: any) {
+          console.error('Failed to send message:', error)
+          toast.error('Failed to send message')
+        }
+      },
+
+      createGroup: async (data) => {
+        try {
+          const group = await groupsAPI.createGroup(data)
+          const groups = [...get().groups, group]
+          set({ groups })
+          toast.success('Group created successfully!')
+          return group
+        } catch (error: any) {
+          console.error('Failed to create group:', error)
+          toast.error('Failed to create group')
+          return null
+        }
+      },
+
+      joinGroup: async (groupId: number) => {
+        try {
+          await groupsAPI.joinGroup(groupId)
+          await get().loadGroups() // Refresh groups list
+          toast.success('Joined group successfully!')
+        } catch (error: any) {
+          console.error('Failed to join group:', error)
+          toast.error('Failed to join group')
+        }
+      },
+
+      leaveGroup: async (groupId: number) => {
+        try {
+          await groupsAPI.leaveGroup(groupId)
+          
+          // Remove group from list or update member count
+          const groups = get().groups.filter(g => g.id !== groupId)
+          set({ groups })
+          
+          // If leaving current group, reset current group
+          if (get().currentGroupId === groupId) {
+            set({ currentGroupId: null, currentGroup: null })
+          }
+          
+          wsService.leaveGroup(groupId)
+          toast.success('Left group successfully!')
+        } catch (error: any) {
+          console.error('Failed to leave group:', error)
+          toast.error('Failed to leave group')
+        }
+      },
+
+      loadGroupMembers: async (groupId: number) => {
+        try {
+          const members = await groupsAPI.getGroupMembers(groupId)
+          set({
+            members: {
+              ...get().members,
+              [groupId]: members
+            }
+          })
+        } catch (error: any) {
+          console.error('Failed to load group members:', error)
+          toast.error('Failed to load group members')
+        }
+      },
+
+      addMessage: (message: Message) => {
+        const currentMessages = get().messages[message.group_id] || []
+        
+        // Check if message already exists (to avoid duplicates)
+        const exists = currentMessages.find(m => m.id === message.id)
+        if (!exists) {
+          set({
+            messages: {
+              ...get().messages,
+              [message.group_id]: [...currentMessages, message]
+            }
+          })
+        }
+      },
+
+      setTyping: (groupId: number, userId: number, isTyping: boolean) => {
+        const currentTyping = get().typingUsers[groupId] || []
+        let newTyping: number[]
+        
+        if (isTyping) {
+          newTyping = currentTyping.includes(userId) ? currentTyping : [...currentTyping, userId]
+        } else {
+          newTyping = currentTyping.filter(id => id !== userId)
+        }
+        
+        set({
+          typingUsers: {
+            ...get().typingUsers,
+            [groupId]: newTyping
+          }
+        })
+      },
+
+      initializeWebSocket: () => {
+        // Listen for new messages
+        wsService.onMessage('message', (wsMessage: any) => {
+          const message = wsMessage.data as Message
+          get().addMessage(message)
+        })
+
+        // Listen for typing events
+        wsService.onMessage('typing', (wsMessage: any) => {
+          const { group_id, user_id, data } = wsMessage
+          get().setTyping(group_id, user_id, data.is_typing)
+        })
+
+        // Listen for user join/leave events
+        wsService.onMessage('user_joined', (wsMessage: any) => {
+          const { group_id } = wsMessage
+          if (group_id === get().currentGroupId) {
+            get().loadGroupMembers(group_id)
+          }
+        })
+
+        wsService.onMessage('user_left', (wsMessage: any) => {
+          const { group_id } = wsMessage
+          if (group_id === get().currentGroupId) {
+            get().loadGroupMembers(group_id)
+          }
+        })
+      },
+
+      reset: () => {
+        set({
+          groups: [],
+          currentGroupId: null,
+          currentGroup: null,
+          messages: {},
+          members: {},
+          typingUsers: {},
+          isLoading: false,
+          isLoadingMessages: false
+        })
+      },
+    }),
+    {
+      name: 'chat-storage',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        // Only persist groups and current group, not messages (reload fresh)
+        groups: state.groups,
+        currentGroupId: state.currentGroupId,
+      }),
+    }
+  )
+)
