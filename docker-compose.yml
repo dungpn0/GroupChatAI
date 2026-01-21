@@ -28,9 +28,17 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      # Override database URLs for container network
+      # Override for Docker network - these are required for container communication
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres123@postgres:5432/groupchatai
       - REDIS_URL=redis://redis:6379
+      # Default values if .env doesn't exist
+      - JWT_SECRET=${JWT_SECRET:-your-default-jwt-secret-change-in-production}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - PROJECT_NAME=${PROJECT_NAME:-GroupChatAI}
+      - DEBUG=${DEBUG:-true}
     ports:
       - "8000:8000"
     depends_on:
@@ -48,16 +56,24 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://backend:8000
-        NEXTAUTH_URL: http://localhost:3000
-        INTERNAL_API_URL: http://backend:8000
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+        - INTERNAL_API_URL=http://backend:8000
     container_name: groupchat_frontend
     env_file:
       - ./frontend/.env.production
     environment:
-      # Override API URL for container network
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      # Override for Docker - API calls from browser go to host, internal calls to container
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
       - INTERNAL_API_URL=http://backend:8000
+      # Default values if .env.production doesn't exist  
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-your-default-nextauth-secret-change-in-production}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+      - NEXT_PUBLIC_ENABLE_AI_CHAT=${NEXT_PUBLIC_ENABLE_AI_CHAT:-true}
+      - NEXT_PUBLIC_ENABLE_GOOGLE_AUTH=${NEXT_PUBLIC_ENABLE_GOOGLE_AUTH:-true}
+      - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-GroupChatAI}
+      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-ws://localhost:8000}
       - NODE_ENV=production
     ports:
       - "3000:3000"
