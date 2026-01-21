@@ -61,7 +61,7 @@ services:
         - INTERNAL_API_URL=http://backend:8000
     container_name: groupchat_frontend
     env_file:
-      - ./frontend/.env.production
+      - ./frontend/.env.local
     environment:
       # Override for Docker - API calls from browser go to host, internal calls to container
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
